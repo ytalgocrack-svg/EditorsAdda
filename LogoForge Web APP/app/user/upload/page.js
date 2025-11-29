@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import Navbar from '@/components/Navbar';
 import { useRouter } from 'next/navigation';
-import { UploadCloud, Link as LinkIcon, FileCode, CheckCircle } from 'lucide-react';
+import { UploadCloud, Image as ImageIcon } from 'lucide-react';
 
 export default function UserUpload() {
   const router = useRouter();
@@ -11,7 +11,8 @@ export default function UserUpload() {
   const [uploading, setUploading] = useState(false);
   
   const [form, setForm] = useState({ title: '', category: '', description: '', xml_link: '' });
-  const [files, setFiles] = useState({ png: null, plp: null, xml: null });
+  // Changed 'png' to 'image'
+  const [files, setFiles] = useState({ image: null, plp: null, xml: null });
 
   useEffect(() => {
     supabase.auth.getUser().then(({data}) => {
@@ -21,15 +22,18 @@ export default function UserUpload() {
   }, []);
 
   const handleUpload = async () => {
-    if (!files.png) return alert("Main Image (PNG) is required!");
+    // Validate generic image
+    if (!files.image) return alert("Main Image is required!");
     if (!form.title || !form.category) return alert("Title and Category are required!");
     
     setUploading(true);
     const timestamp = Date.now();
 
-    const uploadFile = async (file, ext) => {
+    const uploadFile = async (file) => {
       if (!file) return null;
-      const path = `uploads/${user.id}/${timestamp}_${file.name.replace(/[^a-zA-Z0-9.]/g, '')}`;
+      // Sanitize name
+      const cleanName = file.name.replace(/[^a-zA-Z0-9.]/g, '');
+      const path = `uploads/${user.id}/${timestamp}_${cleanName}`;
       const { error } = await supabase.storage.from('assets').upload(path, file);
       if (error) { console.error(error); return null; }
       const { data } = supabase.storage.from('assets').getPublicUrl(path);
@@ -37,21 +41,20 @@ export default function UserUpload() {
     };
 
     try {
-      const pngUrl = await uploadFile(files.png, 'png');
-      const plpUrl = await uploadFile(files.plp, 'plp');
-      let xmlUrl = await uploadFile(files.xml, 'xml');
+      const imageUrl = await uploadFile(files.image); // JPG/PNG/WEBP
+      const plpUrl = await uploadFile(files.plp);
+      let xmlUrl = await uploadFile(files.xml);
       if (!xmlUrl && form.xml_link) xmlUrl = form.xml_link;
 
-      // INSERT WITH STATUS 'PENDING'
       const { error } = await supabase.from('logos').insert({
         title: form.title,
         description: form.description,
-        category: form.category, // Saves whatever the user typed
-        url_png: pngUrl,
+        category: form.category,
+        url_png: imageUrl, // Storing JPG link in existing column
         url_plp: plpUrl,
         url_xml: xmlUrl,
         uploader_id: user.id,
-        status: 'pending' // <--- Key change
+        status: 'pending'
       });
 
       if (error) throw error;
@@ -70,7 +73,7 @@ export default function UserUpload() {
         <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
            <UploadCloud className="text-blue-500"/> Submit Asset
         </h1>
-        <p className="text-slate-400 mb-8 text-sm">Contribute to the community. All uploads are moderated.</p>
+        <p className="text-slate-400 mb-8 text-sm">Contribute to the community. Supports JPG, PNG, WEBP.</p>
         
         <div className="space-y-6">
           <div>
@@ -80,7 +83,6 @@ export default function UserUpload() {
 
           <div>
             <label className="block text-sm font-bold text-slate-300 mb-2">Category</label>
-            {/* Custom Input with Datalist for suggestions */}
             <input 
               list="categories" 
               className="w-full bg-black/20 border border-white/10 p-3 rounded-xl focus:border-blue-500 outline-none text-white" 
@@ -92,7 +94,6 @@ export default function UserUpload() {
               <option value="Gaming" />
               <option value="Technology" />
               <option value="Sports" />
-              <option value="Typography" />
             </datalist>
           </div>
 
@@ -102,11 +103,15 @@ export default function UserUpload() {
           </div>
 
           <div className="grid gap-4">
-            {/* PNG */}
-            <label className={`border-2 border-dashed p-4 rounded-xl text-center cursor-pointer transition ${files.png ? 'border-green-500 bg-green-500/10' : 'border-white/20 hover:border-white/40'}`}>
-              <span className="block font-bold text-sm mb-1">Main Image (PNG) *</span>
-              <input type="file" accept="image/png" className="hidden" onChange={e => setFiles({...files, png: e.target.files[0]})} />
-              <span className="text-xs text-slate-400">{files.png ? files.png.name : "Tap to upload"}</span>
+            {/* IMAGE UPLOAD */}
+            <label className={`border-2 border-dashed p-4 rounded-xl text-center cursor-pointer transition ${files.image ? 'border-green-500 bg-green-500/10' : 'border-white/20 hover:border-white/40'}`}>
+              <div className="flex justify-center mb-2">
+                <ImageIcon className={files.image ? "text-green-400" : "text-slate-400"} />
+              </div>
+              <span className="block font-bold text-sm mb-1">Main Image (JPG, PNG, WEBP) *</span>
+              {/* Accept any image */}
+              <input type="file" accept="image/*" className="hidden" onChange={e => setFiles({...files, image: e.target.files[0]})} />
+              <span className="text-xs text-slate-400">{files.image ? files.image.name : "Tap to upload image"}</span>
             </label>
 
             {/* PLP */}
