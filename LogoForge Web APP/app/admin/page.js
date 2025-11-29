@@ -70,7 +70,7 @@ export default function AdminDashboard() {
                   <td className="p-4"><span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs uppercase">{logo.category}</span></td>
                   <td className="p-4 text-slate-500 text-sm">{new Date(logo.created_at).toLocaleDateString()}</td>
                   <td className="p-4 text-right flex justify-end gap-3">
-                    <button onClick={() => window.open(/view?id=${logo.id}, '_blank')} className="text-slate-400 hover:text-blue-600">
+                    <button onClick={() => window.open(`/view?id=${logo.id}`, '_blank')} className="text-slate-400 hover:text-blue-600">
                       <ExternalLink size={18} />
                     </button>
                     <button onClick={() => handleDelete(logo.id)} className="text-red-400 hover:text-red-600">
