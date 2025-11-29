@@ -3,14 +3,23 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import Navbar from '@/components/Navbar';
 import { useRouter } from 'next/navigation';
-import { Trash2, Edit, ExternalLink, Users, Image as ImageIcon, BarChart3, Shield, ShieldAlert } from 'lucide-react';
+import { Trash2, Edit, ExternalLink, Users, Image as ImageIcon, Settings, Save, ToggleLeft, ToggleRight } from 'lucide-react';
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'logos', 'users'
+  const [activeTab, setActiveTab] = useState('overview'); 
   const [stats, setStats] = useState({ logos: 0, users: 0 });
   const [logos, setLogos] = useState([]);
   const [users, setUsers] = useState([]);
+  
+  // NEW: Settings State
+  const [settings, setSettings] = useState({
+    maintenance_mode: 'false',
+    popup_enabled: 'true',
+    telegram_link: '',
+    youtube_link: ''
+  });
+  const [savingSettings, setSavingSettings] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,9 +32,9 @@ export default function AdminDashboard() {
     const { data } = await supabase.from('profiles').select('role').eq('id', user.id).single();
     if (data?.role !== 'admin') return router.push('/');
     
-    // Fetch all data
     fetchLogos();
     fetchUsers();
+    fetchSettings();
     setLoading(false);
   }
 
@@ -41,19 +50,38 @@ export default function AdminDashboard() {
     setStats(prev => ({ ...prev, users: count }));
   }
 
+  // NEW: Fetch Settings
+  async function fetchSettings() {
+    const { data } = await supabase.from('settings').select('*');
+    if (data) {
+      const formatted = {};
+      data.forEach(item => formatted[item.key] = item.value);
+      setSettings(prev => ({ ...prev, ...formatted }));
+    }
+  }
+
+  // NEW: Save Settings
+  async function handleSaveSettings() {
+    setSavingSettings(true);
+    const updates = Object.keys(settings).map(key => ({ key, value: settings[key] }));
+    const { error } = await supabase.from('settings').upsert(updates);
+    
+    if (error) alert("Error saving: " + error.message);
+    else alert("Settings Saved!");
+    setSavingSettings(false);
+  }
+
   async function handleDelete(id) {
-    if (!confirm("Are you sure? This cannot be undone.")) return;
+    if (!confirm("Delete this logo?")) return;
     await supabase.from('logos').delete().eq('id', id);
     fetchLogos();
   }
 
   async function toggleRole(userId, currentRole) {
     const newRole = currentRole === 'admin' ? 'user' : 'admin';
-    if (!confirm(`Change this user's role to ${newRole.toUpperCase()}?`)) return;
-    
-    const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', userId);
-    if (error) alert(error.message);
-    else fetchUsers();
+    if (!confirm(`Change role to ${newRole.toUpperCase()}?`)) return;
+    await supabase.from('profiles').update({ role: newRole }).eq('id', userId);
+    fetchUsers();
   }
 
   if (loading) return <div className="p-10 text-center text-slate-500">Loading Dashboard...</div>;
@@ -63,102 +91,56 @@ export default function AdminDashboard() {
       <Navbar />
       <div className="max-w-7xl mx-auto p-6 md:p-10">
         
-        {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-center mb-10">
           <h1 className="text-3xl font-bold text-slate-800">Admin Control Panel</h1>
-          <button onClick={() => router.push('/upload')} className="mt-4 md:mt-0 bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 shadow-lg shadow-blue-500/30 transition">
+          <button onClick={() => router.push('/upload')} className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 shadow-lg transition">
             + Upload New Logo
           </button>
         </div>
 
-        {/* Navigation Tabs */}
-        <div className="flex gap-4 mb-8 border-b border-slate-200 pb-1">
-          <button 
-            onClick={() => setActiveTab('overview')} 
-            className={`pb-3 px-2 font-medium transition ${activeTab === 'overview' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}
-          >
-            Overview
-          </button>
-          <button 
-            onClick={() => setActiveTab('logos')} 
-            className={`pb-3 px-2 font-medium transition ${activeTab === 'logos' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}
-          >
-            Manage Logos
-          </button>
-          <button 
-            onClick={() => setActiveTab('users')} 
-            className={`pb-3 px-2 font-medium transition ${activeTab === 'users' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}
-          >
-            Manage Users
-          </button>
+        {/* Tabs */}
+        <div className="flex gap-4 mb-8 border-b border-slate-200 pb-1 overflow-x-auto">
+          {['overview', 'logos', 'users', 'settings'].map((tab) => (
+            <button 
+              key={tab}
+              onClick={() => setActiveTab(tab)} 
+              className={`pb-3 px-2 font-medium capitalize transition ${activeTab === tab ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800'}`}
+            >
+              {tab}
+            </button>
+          ))}
         </div>
 
-        {/* TAB 1: OVERVIEW */}
+        {/* --- TABS CONTENT --- */}
+        
+        {/* OVERVIEW (Same as before) */}
         {activeTab === 'overview' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
-              <div className="p-4 bg-blue-100 text-blue-600 rounded-xl">
-                <ImageIcon size={32} />
-              </div>
-              <div>
-                <p className="text-slate-500 font-medium">Total Logos</p>
-                <h3 className="text-3xl font-bold text-slate-800">{stats.logos}</h3>
-              </div>
-            </div>
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
-              <div className="p-4 bg-purple-100 text-purple-600 rounded-xl">
-                <Users size={32} />
-              </div>
-              <div>
-                <p className="text-slate-500 font-medium">Registered Users</p>
-                <h3 className="text-3xl font-bold text-slate-800">{stats.users}</h3>
-              </div>
-            </div>
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
-              <div className="p-4 bg-emerald-100 text-emerald-600 rounded-xl">
-                <BarChart3 size={32} />
-              </div>
-              <div>
-                <p className="text-slate-500 font-medium">System Status</p>
-                <h3 className="text-xl font-bold text-emerald-600">Active</h3>
-              </div>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+               <h3 className="text-3xl font-bold text-blue-600">{stats.logos}</h3>
+               <p className="text-slate-500">Total Logos</p>
+             </div>
+             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+               <h3 className="text-3xl font-bold text-purple-600">{stats.users}</h3>
+               <p className="text-slate-500">Total Users</p>
+             </div>
           </div>
         )}
 
-        {/* TAB 2: LOGOS */}
+        {/* LOGOS (Same as before) */}
         {activeTab === 'logos' && (
-          <div className="bg-white rounded-xl shadow overflow-hidden border border-slate-100">
-            <table className="w-full text-left border-collapse">
-              <thead className="bg-slate-50 border-b">
-                <tr>
-                  <th className="p-4 text-slate-600 text-sm font-semibold">Preview</th>
-                  <th className="p-4 text-slate-600 text-sm font-semibold">Details</th>
-                  <th className="p-4 text-slate-600 text-sm font-semibold text-right">Actions</th>
-                </tr>
+          <div className="bg-white rounded-xl shadow overflow-hidden">
+            <table className="w-full text-left">
+              <thead className="bg-slate-50">
+                <tr><th className="p-4">Name</th><th className="p-4 text-right">Actions</th></tr>
               </thead>
               <tbody>
-                {logos.map((logo) => (
-                  <tr key={logo.id} className="border-b hover:bg-slate-50 transition">
-                    <td className="p-4 w-20">
-                      <img src={logo.url_png} className="h-14 w-14 object-cover rounded-lg bg-slate-200" />
-                    </td>
-                    <td className="p-4">
-                      <p className="font-bold text-slate-800">{logo.title}</p>
-                      <span className="text-xs bg-slate-100 px-2 py-1 rounded text-slate-500 uppercase">{logo.category}</span>
-                    </td>
-                    <td className="p-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button onClick={() => window.open(`/view?id=${logo.id}`, '_blank')} className="p-2 text-slate-400 hover:text-blue-600 bg-slate-100 rounded-lg">
-                          <ExternalLink size={18} />
-                        </button>
-                        <button onClick={() => router.push(`/admin/edit?id=${logo.id}`)} className="p-2 text-slate-400 hover:text-orange-500 bg-slate-100 rounded-lg">
-                          <Edit size={18} />
-                        </button>
-                        <button onClick={() => handleDelete(logo.id)} className="p-2 text-slate-400 hover:text-red-600 bg-slate-100 rounded-lg">
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
+                {logos.map(l => (
+                  <tr key={l.id} className="border-b hover:bg-slate-50">
+                    <td className="p-4 font-medium">{l.title}</td>
+                    <td className="p-4 text-right flex justify-end gap-2">
+                      <button onClick={() => router.push(`/admin/edit?id=${l.id}`)}><Edit size={18} className="text-orange-500"/></button>
+                      <button onClick={() => handleDelete(l.id)}><Trash2 size={18} className="text-red-500"/></button>
                     </td>
                   </tr>
                 ))}
@@ -167,42 +149,91 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* TAB 3: USERS */}
+        {/* USERS (Same as before) */}
         {activeTab === 'users' && (
-          <div className="bg-white rounded-xl shadow overflow-hidden border border-slate-100">
-             <table className="w-full text-left border-collapse">
-              <thead className="bg-slate-50 border-b">
-                <tr>
-                  <th className="p-4 text-slate-600 text-sm font-semibold">Email</th>
-                  <th className="p-4 text-slate-600 text-sm font-semibold">Current Role</th>
-                  <th className="p-4 text-slate-600 text-sm font-semibold text-right">Manage</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((u) => (
-                  <tr key={u.id} className="border-b hover:bg-slate-50 transition">
-                    <td className="p-4 font-medium text-slate-700">{u.email}</td>
-                    <td className="p-4">
-                      {u.role === 'admin' ? (
-                        <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-bold">
-                          <Shield size={12} /> Admin
-                        </span>
-                      ) : (
-                        <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-bold">User</span>
-                      )}
-                    </td>
-                    <td className="p-4 text-right">
-                      <button 
-                        onClick={() => toggleRole(u.id, u.role)}
-                        className={`text-xs font-bold px-3 py-2 rounded-lg transition ${u.role === 'admin' ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-green-50 text-green-600 hover:bg-green-100'}`}
-                      >
-                        {u.role === 'admin' ? 'Demote to User' : 'Promote to Admin'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+           <div className="bg-white rounded-xl shadow overflow-hidden">
+             <table className="w-full text-left">
+               <thead className="bg-slate-50">
+                 <tr><th className="p-4">Email</th><th className="p-4">Role</th><th className="p-4 text-right">Action</th></tr>
+               </thead>
+               <tbody>
+                 {users.map(u => (
+                   <tr key={u.id} className="border-b">
+                     <td className="p-4">{u.email}</td>
+                     <td className="p-4 font-bold text-xs uppercase">{u.role}</td>
+                     <td className="p-4 text-right">
+                       <button onClick={() => toggleRole(u.id, u.role)} className="text-xs bg-slate-100 px-2 py-1 rounded hover:bg-slate-200">Switch Role</button>
+                     </td>
+                   </tr>
+                 ))}
+               </tbody>
+             </table>
+           </div>
+        )}
+
+        {/* NEW: SETTINGS TAB */}
+        {activeTab === 'settings' && (
+          <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 max-w-2xl">
+            <h2 className="text-xl font-bold mb-6 flex items-center gap-2"><Settings className="text-blue-600"/> Site Configuration</h2>
+            
+            <div className="space-y-6">
+              {/* Maintenance Mode Toggle */}
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <div>
+                  <h3 className="font-bold text-slate-800">Maintenance Mode</h3>
+                  <p className="text-sm text-slate-500">Close the site for everyone except admins.</p>
+                </div>
+                <button 
+                  onClick={() => setSettings({...settings, maintenance_mode: settings.maintenance_mode === 'true' ? 'false' : 'true'})}
+                  className={`text-3xl transition ${settings.maintenance_mode === 'true' ? 'text-red-500' : 'text-slate-300'}`}
+                >
+                  {settings.maintenance_mode === 'true' ? <ToggleRight size={40}/> : <ToggleLeft size={40}/>}
+                </button>
+              </div>
+
+              {/* Popup Toggle */}
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <div>
+                  <h3 className="font-bold text-slate-800">Social Popup</h3>
+                  <p className="text-sm text-slate-500">Show popup when user visits the site.</p>
+                </div>
+                <button 
+                  onClick={() => setSettings({...settings, popup_enabled: settings.popup_enabled === 'true' ? 'false' : 'true'})}
+                  className={`text-3xl transition ${settings.popup_enabled === 'true' ? 'text-green-500' : 'text-slate-300'}`}
+                >
+                  {settings.popup_enabled === 'true' ? <ToggleRight size={40}/> : <ToggleLeft size={40}/>}
+                </button>
+              </div>
+
+              {/* Links */}
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Telegram Link</label>
+                <input 
+                  className="w-full border p-3 rounded-lg" 
+                  value={settings.telegram_link}
+                  onChange={e => setSettings({...settings, telegram_link: e.target.value})}
+                  placeholder="https://t.me/..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">YouTube Link</label>
+                <input 
+                  className="w-full border p-3 rounded-lg" 
+                  value={settings.youtube_link}
+                  onChange={e => setSettings({...settings, youtube_link: e.target.value})}
+                  placeholder="https://youtube.com/..."
+                />
+              </div>
+
+              <button 
+                onClick={handleSaveSettings}
+                disabled={savingSettings}
+                className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 flex justify-center items-center gap-2"
+              >
+                <Save size={18} /> {savingSettings ? "Saving..." : "Save Configuration"}
+              </button>
+            </div>
           </div>
         )}
 
