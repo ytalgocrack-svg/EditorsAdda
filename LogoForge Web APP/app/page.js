@@ -58,7 +58,7 @@ export default function Home() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
           {logos.map((logo) => (
-           <Link key={logo.id} href={/view?id=${logo.id}}>
+          <Link key={logo.id} href={`/view?id=${logo.id}`}>
               <div className="group bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100 overflow-hidden cursor-pointer h-full flex flex-col">
                 <div className="h-56 bg-slate-100 flex items-center justify-center p-6 relative">
                    <div className="absolute inset-0 bg-grid-slate-200/50 [mask-image:linear-gradient(0deg,white,rgba(255,255,255,0.6))]"></div>
@@ -86,4 +86,5 @@ export default function Home() {
     </main>
   );
 }
+
 
