@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import Navbar from '@/components/Navbar';
 import { useRouter } from 'next/navigation';
-import { UploadCloud, Link as LinkIcon, FileCode } from 'lucide-react';
+import { UploadCloud, Link as LinkIcon, FileCode, Image as ImageIcon } from 'lucide-react';
 
 export default function Upload() {
   const router = useRouter();
@@ -15,9 +15,10 @@ export default function Upload() {
     title: '', 
     category: 'Abstract', 
     description: '',
-    xml_link: '' // <--- New Field for External Link
+    xml_link: ''
   });
-  const [files, setFiles] = useState({ png: null, plp: null, xml: null });
+  // Changed 'png' to 'image' to reflect it can be any format
+  const [files, setFiles] = useState({ image: null, plp: null, xml: null });
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
@@ -36,13 +37,17 @@ export default function Upload() {
   }
 
   const handleUpload = async () => {
-    if (!files.png) return alert("PNG (Image) is required!");
+    // Validation: Check for generic 'image'
+    if (!files.image) return alert("Main Image (JPG/PNG) is required!");
+    
     setUploading(true);
     const timestamp = Date.now();
 
-    const uploadFile = async (file, ext) => {
+    const uploadFile = async (file) => {
       if (!file) return null;
-      const path = `${timestamp}_${file.name.replace(/\s/g, '')}`;
+      // Sanitize filename
+      const cleanName = file.name.replace(/[^a-zA-Z0-9.]/g, '');
+      const path = `${timestamp}_${cleanName}`;
       const { error } = await supabase.storage.from('assets').upload(path, file);
       if (error) { console.error(error); return null; }
       const { data } = supabase.storage.from('assets').getPublicUrl(path);
@@ -51,23 +56,22 @@ export default function Upload() {
 
     try {
       // 1. Upload Files
-      const pngUrl = await uploadFile(files.png, 'png');
-      const plpUrl = await uploadFile(files.plp, 'plp');
-      let xmlUrl = await uploadFile(files.xml, 'xml');
+      const imageUrl = await uploadFile(files.image); // Upload JPG or PNG
+      const plpUrl = await uploadFile(files.plp);
+      let xmlUrl = await uploadFile(files.xml);
 
-      // 2. Logic: If no XML file uploaded, check if Admin pasted a Link
       if (!xmlUrl && form.xml_link) {
         xmlUrl = form.xml_link;
       }
 
-      // 3. Save to Database
+      // 2. Save to Database
       const { error } = await supabase.from('logos').insert({
         title: form.title,
         description: form.description,
         category: form.category,
-        url_png: pngUrl,
+        url_png: imageUrl, // We store the JPG/PNG url here
         url_plp: plpUrl,
-        url_xml: xmlUrl // This now holds either the File URL or the External Link
+        url_xml: xmlUrl
       });
 
       if (error) throw error;
@@ -79,7 +83,7 @@ export default function Upload() {
     setUploading(false);
   };
 
-  if (loading) return <div className="p-10">Checking permissions...</div>;
+  if (loading) return <div className="p-10 text-center">Checking permissions...</div>;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -90,7 +94,7 @@ export default function Upload() {
         </h1>
         
         <div className="space-y-6">
-          {/* Title & Desc */}
+          {/* Inputs */}
           <div>
             <label className="block font-semibold mb-2 text-slate-700">Logo Title</label>
             <input className="w-full border-2 border-slate-200 p-3 rounded-xl focus:border-blue-500 outline-none" placeholder="e.g. Red Dragon" onChange={e => setForm({...form, title: e.target.value})} />
@@ -101,24 +105,31 @@ export default function Upload() {
           </div>
           <div>
             <label className="block font-semibold mb-2 text-slate-700">Category</label>
-            <select className="w-full border-2 border-slate-200 p-3 rounded-xl bg-white" onChange={e => setForm({...form, category: e.target.value})}>
-              <option>Abstract</option>
-              <option>Technology</option>
-              <option>Food</option>
-              <option>Sports</option>
-              <option>Gaming</option>
-              <option>Education</option>
-            </select>
+            <input 
+              list="categories"
+              className="w-full border-2 border-slate-200 p-3 rounded-xl focus:border-blue-500 outline-none" 
+              placeholder="Select or Type Category"
+              onChange={e => setForm({...form, category: e.target.value})}
+            />
+            <datalist id="categories">
+              <option value="Abstract" />
+              <option value="Gaming" />
+              <option value="Technology" />
+              <option value="Sports" />
+            </datalist>
           </div>
 
-          {/* FILE UPLOADS */}
           <div className="grid grid-cols-1 gap-4">
-            {/* PNG */}
-            <div className={`border-2 border-dashed p-4 rounded-xl text-center cursor-pointer ${files.png ? 'border-green-500 bg-green-50' : 'border-slate-300'}`}>
+            {/* IMAGE UPLOAD (JPG/PNG) */}
+            <div className={`border-2 border-dashed p-4 rounded-xl text-center cursor-pointer ${files.image ? 'border-green-500 bg-green-50' : 'border-slate-300'}`}>
               <label className="cursor-pointer block">
-                <span className="block font-bold text-sm mb-1">1. Main Image (PNG) - Required</span>
-                <input type="file" accept="image/png" className="hidden" onChange={e => setFiles({...files, png: e.target.files[0]})} />
-                <span className="text-xs text-slate-400">{files.png ? files.png.name : "Click to select PNG"}</span>
+                <div className="flex justify-center mb-2">
+                    <ImageIcon className={files.image ? "text-green-500" : "text-slate-400"} />
+                </div>
+                <span className="block font-bold text-sm mb-1">1. Main Image (JPG, PNG, WEBP) *</span>
+                {/* Accept any image type */}
+                <input type="file" accept="image/*" className="hidden" onChange={e => setFiles({...files, image: e.target.files[0]})} />
+                <span className="text-xs text-slate-400">{files.image ? files.image.name : "Click to select Image"}</span>
               </label>
             </div>
 
@@ -127,15 +138,14 @@ export default function Upload() {
               <label className="cursor-pointer block">
                 <span className="block font-bold text-sm mb-1">2. PixelLab File (.PLP)</span>
                 <input type="file" className="hidden" onChange={e => setFiles({...files, plp: e.target.files[0]})} />
-                <span className="text-xs text-slate-400">{files.plp ? files.plp.name : "Optional: Click to select PLP"}</span>
+                <span className="text-xs text-slate-400">{files.plp ? files.plp.name : "Optional"}</span>
               </label>
             </div>
 
-            {/* XML (File OR Link) */}
+            {/* XML */}
             <div className="p-4 rounded-xl border-2 border-purple-100 bg-purple-50">
               <span className="block font-bold text-sm mb-2 text-purple-900">3. Vector Data (.XML)</span>
               
-              {/* Option A: Upload */}
               <label className="cursor-pointer block bg-white border border-purple-200 rounded-lg p-3 mb-3 hover:bg-purple-50 transition">
                  <div className="flex items-center gap-2">
                     <FileCode size={18} className="text-purple-500"/>
@@ -147,12 +157,11 @@ export default function Upload() {
 
               <div className="text-center text-xs text-slate-400 font-bold mb-3">- OR -</div>
 
-              {/* Option B: Link */}
               <div className="flex items-center gap-2 bg-white border border-purple-200 rounded-lg p-2">
                  <LinkIcon size={18} className="text-purple-500 ml-2"/>
                  <input 
                    className="w-full text-sm outline-none p-1" 
-                   placeholder="Option B: Paste External XML Link (e.g. Drive)"
+                   placeholder="Option B: Paste External XML Link"
                    onChange={e => setForm({...form, xml_link: e.target.value})}
                  />
               </div>
