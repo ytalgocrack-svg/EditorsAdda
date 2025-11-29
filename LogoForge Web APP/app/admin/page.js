@@ -6,8 +6,8 @@ import { useRouter } from 'next/navigation';
 import { 
   Trash2, Edit, ExternalLink, Users, Image as ImageIcon, 
   Settings, Save, ToggleLeft, ToggleRight, Layout, Megaphone, 
-  Type, Link as LinkIcon, AlertTriangle, CheckCircle, 
-  Send, Code, ShieldAlert, Check, X, Search
+  Link as LinkIcon, AlertTriangle, CheckCircle, 
+  Send, Code, ShieldAlert, Check, X, Search, Eye, Download
 } from 'lucide-react';
 
 export default function AdminDashboard() {
@@ -25,7 +25,11 @@ export default function AdminDashboard() {
   const [pendingLogos, setPendingLogos] = useState([]);
   const [users, setUsers] = useState([]);
   
-  // -- SETTINGS STATE (With Defaults) --
+  // -- USER MODAL STATE --
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [userStats, setUserStats] = useState({ uploads: [], downloads: [] });
+
+  // -- SETTINGS STATE --
   const [settings, setSettings] = useState({
     maintenance_mode: 'false',
     popup_enabled: 'true',
@@ -39,7 +43,7 @@ export default function AdminDashboard() {
     ad_banner_html: '',
     shortlink_url: '',
     youtube_link: '',
-    // Telegram Channels 1-5
+    // Telegram Channels
     telegram_label_1: '', telegram_link_1: '',
     telegram_label_2: '', telegram_link_2: '',
     telegram_label_3: '', telegram_link_3: '',
@@ -60,7 +64,7 @@ export default function AdminDashboard() {
     const { data } = await supabase.from('profiles').select('role').eq('id', user.id).single();
     if (data?.role !== 'admin') return router.push('/');
     
-    // Fetch All Data Parallelly
+    // Fetch All Data
     await Promise.all([
       fetchLogos(), 
       fetchPendingLogos(), 
@@ -98,7 +102,47 @@ export default function AdminDashboard() {
     }
   }
 
-  // -- ACTIONS --
+  // -- USER MANAGEMENT ACTIONS --
+  async function openUserModal(user) {
+    setSelectedUser(user);
+    // Fetch Uploads
+    const { data: uploads } = await supabase.from('logos').select('*').eq('uploader_id', user.id);
+    
+    // Fetch Downloads (using foreign key relation to get logo titles)
+    const { data: downloads } = await supabase.from('user_downloads')
+      .select('*, logos(title)')
+      .eq('user_id', user.id)
+      .order('downloaded_at', { ascending: false });
+      
+    setUserStats({ 
+      uploads: uploads || [], 
+      downloads: downloads || [] 
+    });
+  }
+
+  async function handleDeleteUser(userId) {
+    const confirmDelete = prompt("WARNING: This will permanently delete the user and all their data.\nType 'DELETE' to confirm.");
+    if (confirmDelete !== 'DELETE') return;
+
+    // Call RPC function created in SQL
+    const { error } = await supabase.rpc('delete_user_by_id', { target_user_id: userId });
+    
+    if (error) alert("Error: " + error.message);
+    else {
+      alert("User account deleted.");
+      setSelectedUser(null);
+      fetchUsers();
+    }
+  }
+
+  async function toggleRole(userId, currentRole) {
+    const newRole = currentRole === 'admin' ? 'user' : 'admin';
+    if (!confirm(`Change role to ${newRole.toUpperCase()}?`)) return;
+    await supabase.from('profiles').update({ role: newRole }).eq('id', userId);
+    fetchUsers();
+  }
+
+  // -- CONTENT ACTIONS --
   async function handleSaveSettings() {
     setSavingSettings(true);
     const updates = Object.keys(settings).map(key => ({ 
@@ -115,7 +159,7 @@ export default function AdminDashboard() {
   }
 
   async function handleDelete(id) {
-    if (!confirm("Delete this logo permanently? This cannot be undone.")) return;
+    if (!confirm("Delete this logo permanently?")) return;
     await supabase.from('logos').delete().eq('id', id);
     fetchLogos();
   }
@@ -128,16 +172,9 @@ export default function AdminDashboard() {
 
   async function handleReject(id) {
     const reason = prompt("Enter rejection reason (optional):");
-    if (reason === null) return; // Cancelled
+    if (reason === null) return;
     await supabase.from('logos').update({ status: 'rejected', rejection_reason: reason }).eq('id', id);
     fetchPendingLogos();
-  }
-
-  async function toggleRole(userId, currentRole) {
-    const newRole = currentRole === 'admin' ? 'user' : 'admin';
-    if (!confirm(`Change role to ${newRole.toUpperCase()}?`)) return;
-    await supabase.from('profiles').update({ role: newRole }).eq('id', userId);
-    fetchUsers();
   }
 
   // -- RENDER --
@@ -219,7 +256,7 @@ export default function AdminDashboard() {
         {/* 2. LOGOS (Live) */}
         {activeTab === 'logos' && (
           <div className="animate-slide-up space-y-4">
-            <div className="flex items-center bg-white border p-2 rounded-xl mb-4">
+            <div className="flex items-center bg-white border p-2 rounded-xl mb-4 shadow-sm">
               <Search className="text-slate-400 ml-2"/>
               <input 
                 placeholder="Search live logos..." 
@@ -265,8 +302,8 @@ export default function AdminDashboard() {
                     <p className="text-sm text-slate-500 mb-2 line-clamp-2">{l.description || "No description provided."}</p>
                     <div className="flex flex-wrap gap-2 justify-center md:justify-start">
                         <span className="text-xs bg-white border px-2 py-1 rounded font-bold uppercase text-slate-500">{l.category}</span>
-                        {l.url_plp && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded font-bold">PLP Included</span>}
-                        {l.url_xml && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded font-bold">XML Included</span>}
+                        {l.url_plp && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded font-bold">PLP</span>}
+                        {l.url_xml && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded font-bold">XML</span>}
                     </div>
                   </div>
                   <div className="flex gap-2 w-full md:w-auto">
@@ -282,19 +319,35 @@ export default function AdminDashboard() {
         {/* 4. USERS */}
         {activeTab === 'users' && (
            <div className="bg-white rounded-xl shadow overflow-hidden border border-slate-100 animate-slide-up">
-             {users.map(u => (
-               <div key={u.id} className="p-4 border-b last:border-0 flex items-center justify-between hover:bg-slate-50 transition">
-                 <div className="min-w-0 pr-4">
-                   <p className="font-bold text-slate-800 truncate text-sm">{u.email}</p>
-                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-500'}`}>
-                     {u.role}
-                   </span>
-                 </div>
-                 <button onClick={() => toggleRole(u.id, u.role)} className="shrink-0 text-xs bg-slate-100 px-3 py-2 rounded-lg font-bold hover:bg-slate-200">
-                   {u.role === 'admin' ? 'Demote' : 'Promote'}
-                 </button>
-               </div>
-             ))}
+             <table className="w-full text-left">
+               <thead className="bg-slate-50 border-b">
+                 <tr>
+                   <th className="p-4 text-sm font-bold text-slate-500">Email</th>
+                   <th className="p-4 text-sm font-bold text-slate-500">Role</th>
+                   <th className="p-4 text-sm font-bold text-slate-500 text-right">Actions</th>
+                 </tr>
+               </thead>
+               <tbody>
+                 {users.map(u => (
+                   <tr key={u.id} className="border-b hover:bg-slate-50 transition">
+                     <td className="p-4 font-bold text-slate-800">{u.email}</td>
+                     <td className="p-4">
+                       <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-500'}`}>
+                         {u.role}
+                       </span>
+                     </td>
+                     <td className="p-4 text-right flex justify-end gap-2">
+                       <button onClick={() => toggleRole(u.id, u.role)} className="shrink-0 text-xs bg-slate-100 px-3 py-2 rounded-lg font-bold hover:bg-slate-200">
+                         {u.role === 'admin' ? 'Demote' : 'Promote'}
+                       </button>
+                       <button onClick={() => openUserModal(u)} className="shrink-0 text-xs bg-blue-50 text-blue-600 border border-blue-200 px-3 py-2 rounded-lg font-bold hover:bg-blue-100">
+                         View Details
+                       </button>
+                     </td>
+                   </tr>
+                 ))}
+               </tbody>
+             </table>
            </div>
         )}
 
@@ -306,18 +359,9 @@ export default function AdminDashboard() {
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
               <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-slate-800"><Layout className="text-blue-600" size={20}/> Site Visuals</h3>
               <div className="space-y-3">
-                <div>
-                   <label className="text-xs font-bold text-slate-400 uppercase">Website Name</label>
-                   <input className="w-full border p-3 rounded-xl text-sm" value={settings.site_name} onChange={e => setSettings({...settings, site_name: e.target.value})} />
-                </div>
-                <div>
-                   <label className="text-xs font-bold text-slate-400 uppercase">Hero Title</label>
-                   <input className="w-full border p-3 rounded-xl text-sm" value={settings.hero_title} onChange={e => setSettings({...settings, hero_title: e.target.value})} />
-                </div>
-                <div>
-                   <label className="text-xs font-bold text-slate-400 uppercase">Hero Subtitle</label>
-                   <input className="w-full border p-3 rounded-xl text-sm" value={settings.hero_subtitle} onChange={e => setSettings({...settings, hero_subtitle: e.target.value})} />
-                </div>
+                <input className="w-full border p-3 rounded-xl text-sm" placeholder="Site Name" value={settings.site_name} onChange={e => setSettings({...settings, site_name: e.target.value})} />
+                <input className="w-full border p-3 rounded-xl text-sm" placeholder="Hero Title" value={settings.hero_title} onChange={e => setSettings({...settings, hero_title: e.target.value})} />
+                <input className="w-full border p-3 rounded-xl text-sm" placeholder="Hero Subtitle" value={settings.hero_subtitle} onChange={e => setSettings({...settings, hero_subtitle: e.target.value})} />
               </div>
             </div>
 
@@ -329,22 +373,15 @@ export default function AdminDashboard() {
                     {settings.announcement_enabled === 'true' ? <ToggleRight size={32} className="text-green-500"/> : <ToggleLeft size={32} className="text-slate-300"/>}
                  </button>
               </div>
-              <label className="text-xs font-bold text-slate-400 uppercase">Notification Text</label>
-              <input className="w-full border p-3 rounded-xl text-sm" value={settings.announcement_text} onChange={e => setSettings({...settings, announcement_text: e.target.value})} />
+              <input className="w-full border p-3 rounded-xl text-sm" placeholder="Notification Text" value={settings.announcement_text} onChange={e => setSettings({...settings, announcement_text: e.target.value})} />
             </div>
 
             {/* Ads & Scripts */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 lg:col-span-2">
               <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-slate-800"><Code className="text-slate-600" size={20}/> Ad Scripts (HTML)</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Head Script (Google Adsense)</label>
-                  <textarea className="w-full border p-3 rounded-xl text-xs h-24 font-mono bg-slate-50" placeholder="<script>...</script>" value={settings.ad_script_head} onChange={e => setSettings({...settings, ad_script_head: e.target.value})} />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Banner Ad HTML</label>
-                  <textarea className="w-full border p-3 rounded-xl text-xs h-24 font-mono bg-slate-50" placeholder="<a href='...'><img src='...'/></a>" value={settings.ad_banner_html} onChange={e => setSettings({...settings, ad_banner_html: e.target.value})} />
-                </div>
+                <textarea className="w-full border p-3 rounded-xl text-xs h-24 font-mono bg-slate-50" placeholder="<script>... (Head)</script>" value={settings.ad_script_head} onChange={e => setSettings({...settings, ad_script_head: e.target.value})} />
+                <textarea className="w-full border p-3 rounded-xl text-xs h-24 font-mono bg-slate-50" placeholder="<a href='...'><img.../></a> (Banner)" value={settings.ad_banner_html} onChange={e => setSettings({...settings, ad_banner_html: e.target.value})} />
               </div>
             </div>
 
@@ -399,6 +436,77 @@ export default function AdminDashboard() {
                <button onClick={handleSaveSettings} disabled={savingSettings} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold text-lg hover:bg-slate-800 shadow-xl shadow-slate-900/20 flex justify-center items-center gap-2 transition transform active:scale-95">
                  {savingSettings ? "Saving..." : <><Save size={20} /> Save All Changes</>}
                </button>
+            </div>
+          </div>
+        )}
+
+        {/* USER DETAILS MODAL */}
+        {selectedUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-bounce-in">
+              
+              <div className="p-6 border-b flex justify-between items-center bg-slate-50 sticky top-0">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-800">{selectedUser.email}</h2>
+                  <p className="text-xs text-slate-500 uppercase font-bold">User ID: {selectedUser.id}</p>
+                </div>
+                <button onClick={() => setSelectedUser(null)} className="p-2 hover:bg-slate-200 rounded-full"><X size={20}/></button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                
+                {/* Stats Grid */}
+                <div className="grid grid-cols-2 gap-4">
+                   <div className="p-4 bg-blue-50 rounded-xl text-center">
+                     <h3 className="text-2xl font-bold text-blue-600">{userStats.uploads.length}</h3>
+                     <p className="text-xs font-bold text-blue-400 uppercase">Uploads</p>
+                   </div>
+                   <div className="p-4 bg-green-50 rounded-xl text-center">
+                     <h3 className="text-2xl font-bold text-green-600">{userStats.downloads.length}</h3>
+                     <p className="text-xs font-bold text-green-400 uppercase">Downloads</p>
+                   </div>
+                </div>
+
+                {/* Upload History */}
+                <div>
+                   <h3 className="font-bold text-slate-700 mb-2 flex items-center gap-2"><ImageIcon size={16}/> Recent Uploads</h3>
+                   <div className="bg-slate-50 rounded-xl border p-2 max-h-40 overflow-y-auto space-y-2">
+                      {userStats.uploads.length === 0 && <p className="text-sm text-slate-400 p-2">No uploads yet.</p>}
+                      {userStats.uploads.map(up => (
+                        <div key={up.id} className="flex items-center gap-3 p-2 bg-white rounded border border-slate-100">
+                           <img src={up.url_png} className="w-8 h-8 rounded bg-slate-100 object-cover"/>
+                           <span className="text-sm font-medium truncate">{up.title}</span>
+                           <span className={`text-[10px] ml-auto px-1 rounded uppercase font-bold ${up.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>{up.status}</span>
+                        </div>
+                      ))}
+                   </div>
+                </div>
+
+                {/* Download History */}
+                <div>
+                   <h3 className="font-bold text-slate-700 mb-2 flex items-center gap-2"><Download size={16}/> Recent Downloads</h3>
+                   <div className="bg-slate-50 rounded-xl border p-2 max-h-40 overflow-y-auto space-y-2">
+                      {userStats.downloads.length === 0 && <p className="text-sm text-slate-400 p-2">No downloads yet.</p>}
+                      {userStats.downloads.map(dl => (
+                        <div key={dl.id} className="flex items-center justify-between p-2 bg-white rounded border border-slate-100">
+                           <span className="text-sm font-medium truncate">{dl.logos?.title || 'Deleted Logo'}</span>
+                           <span className="text-xs text-slate-400">{new Date(dl.downloaded_at).toLocaleDateString()}</span>
+                        </div>
+                      ))}
+                   </div>
+                </div>
+
+                {/* Danger Zone */}
+                <div className="pt-6 border-t mt-6">
+                  <button 
+                    onClick={() => handleDeleteUser(selectedUser.id)}
+                    className="w-full py-3 bg-red-50 text-red-600 border border-red-200 rounded-xl font-bold hover:bg-red-600 hover:text-white transition flex items-center justify-center gap-2"
+                  >
+                    <Trash2 size={18}/> Delete Account Permanently
+                  </button>
+                </div>
+
+              </div>
             </div>
           </div>
         )}
