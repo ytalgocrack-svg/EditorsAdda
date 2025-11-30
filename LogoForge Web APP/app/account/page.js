@@ -45,6 +45,7 @@ export default function AccountSettings() {
     const fileExt = file.name.split('.').pop();
     const fileName = `${user.id}/${Date.now()}.${fileExt}`;
     
+    // Upsert ensures we overwrite if needed, reducing errors
     const { error } = await supabase.storage.from('avatars').upload(fileName, file, { upsert: true });
     
     if(error) throw error;
@@ -117,7 +118,7 @@ export default function AccountSettings() {
             <div className="bg-white/5 border border-white/10 p-6 rounded-2xl text-center shadow-lg">
               <div className="relative w-28 h-28 md:w-32 md:h-32 mx-auto mb-4 group">
                 {profile.avatar_url ? (
-                   <img src={profile.avatar_url} className="w-full h-full rounded-full object-cover border-4 border-[#0f172a] shadow-xl" />
+                   <img src={profile.avatar_url} className="w-full h-full rounded-full object-cover border-4 border-[#0f172a] shadow-xl" alt="Avatar" />
                 ) : (
                    <div className="w-full h-full rounded-full bg-slate-700 flex items-center justify-center text-xs">No Image</div>
                 )}
@@ -135,7 +136,7 @@ export default function AccountSettings() {
             <div className="bg-white/5 border border-white/10 p-6 rounded-2xl text-center shadow-lg">
               <div className="relative w-full h-24 bg-slate-800 rounded-lg mb-4 overflow-hidden group">
                  {profile.banner_url ? (
-                   <img src={profile.banner_url} className="w-full h-full object-cover"/>
+                   <img src={profile.banner_url} className="w-full h-full object-cover" alt="Banner" />
                  ) : (
                    <div className="w-full h-full flex items-center justify-center text-slate-500 text-xs">No Banner Set</div>
                  )}
@@ -181,4 +182,32 @@ export default function AccountSettings() {
               {/* Password */}
               <div className="mb-8 pt-6 border-t border-white/10">
                 <label className="block text-sm font-bold text-slate-400 mb-2">Change Password (Optional)</label>
-                <div className="flex items-center gap-3 bg-black/20 border border-white/10
+                <div className="flex items-center gap-3 bg-black/20 border border-white/10 p-3 rounded-xl focus-within:border-blue-500 transition">
+                  <Lock size={18} className="text-slate-500"/>
+                  <input 
+                    type="password"
+                    className="bg-transparent outline-none w-full text-white placeholder:text-slate-600" 
+                    value={newPassword} 
+                    onChange={e => setNewPassword(e.target.value)}
+                    placeholder="Enter new password" 
+                  />
+                </div>
+              </div>
+
+              {/* Save Button */}
+              <button 
+                onClick={handleSave} 
+                disabled={saving}
+                className="w-full bg-blue-600 hover:bg-blue-500 active:scale-95 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition shadow-lg shadow-blue-600/20"
+              >
+                {saving ? <Loader2 className="animate-spin" /> : <Save size={20}/>}
+                {saving ? "Saving Changes..." : "Save Profile"}
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}
