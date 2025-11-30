@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { 
   LogOut, Shield, Menu, X, Sparkles, Megaphone, 
   UploadCloud, LayoutDashboard, Trophy, MessageSquarePlus, 
-  Palette, User, Bell 
+  Palette, User, Bell, Users // <--- Added Users Icon
 } from 'lucide-react';
 import NotificationBell from './NotificationBell';
 
@@ -17,8 +17,8 @@ export default function Navbar() {
   const [isAdmin, setIsAdmin] = useState(false);
   
   // -- UI State --
-  const [menuOpen, setMenuOpen] = useState(false); // Mobile Menu
-  const [dropdownOpen, setDropdownOpen] = useState(false); // Avatar Menu
+  const [menuOpen, setMenuOpen] = useState(false); 
+  const [dropdownOpen, setDropdownOpen] = useState(false); 
   
   // -- Settings State --
   const [settings, setSettings] = useState({
@@ -28,14 +28,13 @@ export default function Navbar() {
   });
   
   const router = useRouter();
-  const dropdownRef = useRef(null); // Ref to handle click outside
+  const dropdownRef = useRef(null);
 
   // -- Effects --
   useEffect(() => {
     checkUser();
     fetchSettings();
 
-    // Close dropdown when clicking outside
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setDropdownOpen(false);
@@ -43,7 +42,6 @@ export default function Navbar() {
     }
     document.addEventListener("mousedown", handleClickOutside);
 
-    // Auth Listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(() => { 
       checkUser(); 
     });
@@ -109,9 +107,12 @@ export default function Navbar() {
             </Link>
             
             {/* Desktop Center Links */}
-            <div className="hidden md:flex items-center gap-6">
+            <div className="hidden md:flex items-center gap-5">
               <Link href="/leaderboard" className="text-sm font-bold text-slate-400 hover:text-yellow-400 flex items-center gap-1.5 transition">
                 <Trophy size={16}/> Top Creators
+              </Link>
+              <Link href="/community" className="text-sm font-bold text-slate-400 hover:text-blue-400 flex items-center gap-1.5 transition">
+                <Users size={16}/> Community
               </Link>
               <Link href="/requests" className="text-sm font-bold text-slate-400 hover:text-green-400 flex items-center gap-1.5 transition">
                 <MessageSquarePlus size={16}/> Requests
@@ -148,7 +149,6 @@ export default function Navbar() {
                   {dropdownOpen && (
                     <div className="absolute right-0 mt-3 w-64 bg-[#1e293b] border border-white/10 rounded-xl shadow-2xl py-2 z-50 animate-fade-in origin-top-right">
                         
-                        {/* User Info Header */}
                         <div className="px-4 py-3 border-b border-white/5 mb-2">
                           <p className="text-white font-bold truncate">{profile?.display_name || 'User'}</p>
                           <p className="text-xs text-slate-400 truncate">{user.email}</p>
@@ -197,6 +197,9 @@ export default function Navbar() {
              <div className="space-y-1 pb-4 border-b border-white/5">
                <Link href="/leaderboard" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 p-3 text-slate-300 font-bold hover:bg-white/5 rounded-lg">
                  <Trophy size={18} className="text-yellow-500"/> Leaderboard
+               </Link>
+               <Link href="/community" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 p-3 text-slate-300 font-bold hover:bg-white/5 rounded-lg">
+                 <Users size={18} className="text-blue-500"/> Community
                </Link>
                <Link href="/requests" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 p-3 text-slate-300 font-bold hover:bg-white/5 rounded-lg">
                  <MessageSquarePlus size={18} className="text-green-500"/> Request Zone
