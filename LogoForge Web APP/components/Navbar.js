@@ -17,7 +17,7 @@ export default function Navbar() {
   const dropdownRef = useRef(null);
   
   const [settings, setSettings] = useState({
-    site_name: 'LogoForge',
+    site_name: 'EditorsAdda',
     announcement_text: '',
     announcement_enabled: 'false'
   });
