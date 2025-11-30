@@ -6,7 +6,7 @@ export async function forceDownload(url, filename) {
     
     const link = document.createElement('a');
     link.href = blobUrl;
-    link.download = filename || 'download.plp'; // Forces the name
+    link.download = filename || 'download';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
