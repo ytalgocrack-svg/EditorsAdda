@@ -1,48 +1,50 @@
-import { Twitter, Instagram, Github, Heart } from 'lucide-react';
+"use client";
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 
 export default function Footer() {
+  const [settings, setSettings] = useState({
+    footer_about: 'The best place for design assets.',
+    footer_copyright: '© 2024 LogoForge.',
+    footer_link_1_label: 'Privacy', footer_link_1_url: '#',
+    footer_link_2_label: 'Terms', footer_link_2_url: '#',
+    footer_link_3_label: 'Contact', footer_link_3_url: '#',
+  });
+
+  useEffect(() => {
+    supabase.from('settings').select('*').then(({data}) => {
+      const config = {};
+      if(data) data.forEach(item => config[item.key] = item.value);
+      setSettings(prev => ({ ...prev, ...config }));
+    });
+  }, []);
+
   return (
-    <footer className="bg-slate-900 text-slate-300 py-12 border-t border-slate-800 mt-20">
-      <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-4 gap-10">
+    <footer className="bg-[#0b1120] border-t border-white/10 py-12 mt-auto">
+      <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between gap-8">
         
-        {/* Brand */}
-        <div className="col-span-1 md:col-span-2">
-          <h2 className="text-2xl font-bold text-white mb-4">LogoForge</h2>
-          <p className="max-w-xs text-slate-400">
-            The #1 source for free PLP, XML, and PNG assets for content creators and designers.
+        {/* About */}
+        <div className="max-w-sm">
+          <h3 className="text-white font-bold text-lg mb-4">About</h3>
+          <p className="text-slate-400 text-sm leading-relaxed">
+            {settings.footer_about}
           </p>
         </div>
 
         {/* Links */}
         <div>
-          <h3 className="font-bold text-white mb-4">Explore</h3>
-          <ul className="space-y-2 text-sm">
-            <li><Link href="/" className="hover:text-blue-400 transition">Latest Logos</Link></li>
-            <li><Link href="/auth" className="hover:text-blue-400 transition">Login / Sign Up</Link></li>
-            <li><Link href="/upload" className="hover:text-blue-400 transition">Submit Logo</Link></li>
-          </ul>
-        </div>
-
-        {/* Legal */}
-        <div>
-          <h3 className="font-bold text-white mb-4">Legal</h3>
-          <ul className="space-y-2 text-sm">
-            <li><span className="cursor-pointer hover:text-blue-400">Privacy Policy</span></li>
-            <li><span className="cursor-pointer hover:text-blue-400">Terms of Service</span></li>
-            <li><span className="cursor-pointer hover:text-blue-400">Cookie Policy</span></li>
-          </ul>
+           <h3 className="text-white font-bold text-lg mb-4">Quick Links</h3>
+           <ul className="space-y-2 text-sm text-slate-400">
+             <li><Link href={settings.footer_link_1_url || '#'} className="hover:text-primary transition">{settings.footer_link_1_label}</Link></li>
+             <li><Link href={settings.footer_link_2_url || '#'} className="hover:text-primary transition">{settings.footer_link_2_label}</Link></li>
+             <li><Link href={settings.footer_link_3_url || '#'} className="hover:text-primary transition">{settings.footer_link_3_label}</Link></li>
+           </ul>
         </div>
       </div>
-
-      {/* Bottom Bar */}
-      <div className="max-w-7xl mx-auto px-6 mt-12 pt-8 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center text-sm">
-        <p>© {new Date().getFullYear()} LogoForge. All rights reserved.</p>
-        <div className="flex gap-4 mt-4 md:mt-0">
-          <Twitter size={20} className="hover:text-white cursor-pointer"/>
-          <Instagram size={20} className="hover:text-white cursor-pointer"/>
-          <Github size={20} className="hover:text-white cursor-pointer"/>
-        </div>
+      
+      <div className="max-w-7xl mx-auto px-6 mt-12 pt-8 border-t border-white/5 text-center text-xs text-slate-500">
+         {settings.footer_copyright}
       </div>
     </footer>
   );
