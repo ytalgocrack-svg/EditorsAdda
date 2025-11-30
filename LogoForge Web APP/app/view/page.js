@@ -167,7 +167,7 @@ function LogoViewContent() {
             </div>
 
             {/* CREATOR CARD (NEW) */}
-            <Link href={`/channel/${logo.uploader_id}`} className="flex items-center gap-4 bg-white/5 p-4 rounded-2xl border border-white/10 hover:bg-white/10 transition mb-8 group cursor-pointer">
+            <Link href={/channel/{logo.uploader_id}} className="flex items-center gap-4 bg-white/5 p-4 rounded-2xl border border-white/10 hover:bg-white/10 transition mb-8 group cursor-pointer">
                <div className="w-12 h-12 rounded-full p-[2px] bg-gradient-to-tr from-primary to-purple-500">
                  <img 
                    src={logo.profiles?.avatar_url || `https://ui-avatars.com/api/?name=${logo.profiles?.email || 'User'}`} 
